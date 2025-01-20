@@ -1,114 +1,168 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+import React, { useEffect, useState } from 'react';
+import io from 'socket.io-client';
+import { v4 as uuidv4 } from 'uuid';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+let socket;
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/pages/index.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [lobbyIdInput, setLobbyIdInput] = useState('');
+  const [lobbyId, setLobbyId] = useState(null);
+  const [playerCount, setPlayerCount] = useState(0);
+  const [roundResult, setRoundResult] = useState(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Connect to socket server once on component mount
+  useEffect(() => {
+    // We call our custom API route to ensure the server is set up
+    fetch('/api/socket')
+      .then(() => {
+        socket = io({
+          path: '/api/socket_io',
+        });
+
+        // Listen for playerCount updates
+        socket.on('playerCount', (count) => {
+          setPlayerCount(count);
+        });
+
+        // Listen for round results
+        socket.on('roundResult', (data) => {
+          setRoundResult(data);
+        });
+      })
+      .catch((err) => console.error(err));
+
+    // Cleanup on unmount
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, []);
+
+  const createLobby = () => {
+    // Generate a unique lobby ID (use any strategy you like)
+    const newLobbyId = uuidv4().slice(0, 6); // e.g., 6-char code
+    setLobbyId(newLobbyId);
+    setLobbyIdInput(newLobbyId);
+
+    // Join the lobby
+    socket.emit('joinLobby', newLobbyId);
+  };
+
+  const joinLobby = () => {
+    if (!lobbyIdInput) return;
+    setLobbyId(lobbyIdInput);
+    socket.emit('joinLobby', lobbyIdInput);
+  };
+
+  const handleChoice = (choice) => {
+    if (!lobbyId) return;
+    socket.emit('playerChoice', { lobbyId, choice });
+  };
+
+  return (
+    <div style={styles.container}>
+      <h1>2-Player RPS Lobby</h1>
+
+      {!lobbyId && (
+        <div style={styles.lobbyActions}>
+          <button onClick={createLobby} style={styles.button}>
+            Create Lobby
+          </button>
+          <div style={styles.row}>
+            <input
+              type="text"
+              placeholder="Lobby ID..."
+              value={lobbyIdInput}
+              onChange={(e) => setLobbyIdInput(e.target.value)}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <button onClick={joinLobby} style={styles.button}>
+              Join Lobby
+            </button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {lobbyId && (
+        <div>
+          <p>
+            <strong>Lobby ID:</strong> {lobbyId}
+          </p>
+          <p>
+            <strong>Players in Lobby:</strong> {playerCount}
+          </p>
+
+          {playerCount < 2 && (
+            <p style={{ color: 'red' }}>
+              Waiting for another player to join...
+            </p>
+          )}
+
+          {playerCount === 2 && (
+            <>
+              <div style={styles.row}>
+                <button onClick={() => handleChoice('rock')} style={styles.button}>
+                  Rock
+                </button>
+                <button onClick={() => handleChoice('paper')} style={styles.button}>
+                  Paper
+                </button>
+                <button onClick={() => handleChoice('scissors')} style={styles.button}>
+                  Scissors
+                </button>
+              </div>
+              {roundResult && <ResultDisplay roundResult={roundResult} />}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+function ResultDisplay({ roundResult }) {
+  const { outcome, winnerId, loserId, choices } = roundResult;
+
+  // You can determine if "you" are the winner by comparing `socket.id` with `winnerId`
+  // But for demonstration, we’ll just display the outcome for both players.
+  if (outcome === 'tie') {
+    return (
+      <p>
+        Tie! Both chose {Object.values(choices)[0]}.
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <p>
+        Winner: {winnerId} with {choices[winnerId]}
+      </p>
+      <p>
+        Loser: {loserId} with {choices[loserId]}
+      </p>
+    </div>
+  );
+}
+
+const styles = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 30,
+    fontFamily: 'sans-serif',
+  },
+  lobbyActions: {
+    marginBottom: 20,
+  },
+  row: {
+    display: 'flex',
+    gap: 10,
+    marginTop: 10,
+  },
+  button: {
+    padding: '6px 12px',
+    cursor: 'pointer',
+  },
+};
